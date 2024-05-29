@@ -391,7 +391,7 @@ class Gapvector{
 
         [[nodiscard]] constexpr size_type capacity() const noexcept { return bufferEnd - bufferStart; }
 
-        constexpr void reserve(size_type new_cap) {
+        constexpr void reserve(int new_cap) {
             if (new_cap > bufferEnd - bufferStart) {
                 pointer new_mem = allocator_type().allocate(new_cap);
                 std::uninitialized_copy_n(bufferStart, capacity(), new_mem);
@@ -403,6 +403,13 @@ class Gapvector{
                 bufferEnd = new_mem + new_cap;
                 bufferStart = new_mem;
             }
+        }
+
+        [[nodiscard]] constexpr unsigned int line_count() const noexcept {
+            if (bufferStart == gapStart && bufferEnd == gapEnd) { return 0; }
+            int newlines = std::count(begin(), end(), '\n');
+            if (back() != '\n') { newlines++; }
+            return newlines;
         }
 
         // Modifiers

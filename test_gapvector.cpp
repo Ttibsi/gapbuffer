@@ -324,6 +324,40 @@ TEST_CASE("Capacity", "[Capacity]") {
     REQUIRE(gv2.capacity() == 64);
 }
 
+TEST_CASE("Reserve", "[Capacity]") {
+    auto gv = Gapvector(16);
+    REQUIRE(gv.capacity() == 16);
+
+    SECTION("Doesn't resize smaller than existing size") {
+        gv.reserve(8);
+        REQUIRE(gv.capacity() == 16);
+    }
+
+    SECTION("Larger") {
+        gv.reserve(32);
+        REQUIRE(gv.capacity() == 32);
+    }
+}
+
+TEST_CASE("Line Count", "[Capacity]") {
+    SECTION("Empty") {
+        auto gv = Gapvector();
+        REQUIRE(gv.line_count() == 0);
+    }
+
+    SECTION("No Newlines present") {
+        std::string s = "hello world";
+        auto gv = Gapvector(s);
+        REQUIRE(gv.line_count() == 1);
+    }
+
+    SECTION("Many Newlines present") {
+        std::string s = "hello world\nthis is some text\nanother newline";
+        auto gv = Gapvector(s);
+        REQUIRE(gv.line_count() == 3);
+    }
+}
+
 TEST_CASE("Clear", "[Modifiers]") {
     std::string s = "hello world";
     auto gv = Gapvector(s);
