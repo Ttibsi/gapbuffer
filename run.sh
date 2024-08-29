@@ -1,4 +1,4 @@
-cmake -S . -B build/
+cmake -G Ninja -S . -B build/
 cmake --build build/
 
 # Only run tests if build is successful
