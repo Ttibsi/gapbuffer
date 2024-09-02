@@ -433,7 +433,11 @@ class Gapvector{
         }
 
         constexpr void insert(iterator pos, const_reference value) {
-            if (static_cast<size_type>(gapEnd - gapStart) < 1) { resize(capacity() * 2); }
+            if (static_cast<size_type>(gapEnd - gapStart) <= 1) {
+                int pos_len = pos - begin();
+                resize(capacity() * 2);
+                pos = begin() + pos_len + 1;
+            }
         
             std::uninitialized_copy_n(pos.ptr, gapStart - pos.ptr, pos.ptr + 1);
             *pos.ptr = value;
@@ -442,7 +446,11 @@ class Gapvector{
         }
         
         constexpr void insert(iterator pos, const std::string_view value) {
-            if (static_cast<size_type>(gapEnd - gapStart) < value.size()) { resize(capacity() * 2); }
+            if (static_cast<size_type>(gapEnd - gapStart) <= value.size()) {
+                int pos_len = pos - begin();
+                resize(capacity() * 2);
+                pos = begin() + pos_len + 1;
+            }
         
             std::uninitialized_copy_n(pos.ptr, gapStart - pos.ptr, pos.ptr + value.size());
             std::copy(value.begin(), value.end(), pos.ptr);
@@ -485,6 +493,7 @@ class Gapvector{
             gapEnd = new_mem + prefix_size + (count - capacity());
             bufferEnd = new_mem + count;
             bufferStart = new_mem;
+
         }
 
     private:
