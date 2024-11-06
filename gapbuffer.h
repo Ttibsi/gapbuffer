@@ -1,10 +1,12 @@
 #ifndef GAPBUFFER_H
 #define GAPBUFFER_H
 
+#include <algorithm>
 #include <cstddef>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
+#include <ostream>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -190,13 +192,53 @@ class Gapbuffer {
         // Element Access
         // Iterators
         // Capacity
+        [[nodiscard]] constexpr bool empty() const noexcept { return bufferStart == gapStart; }
+        [[nodiscard]] constexpr size_type size() const noexcept {
+            return bufferEnd - bufferStart - (gapEnd - gapStart);
+        }
+
+        [[nodiscard]] constexpr size_type capacity() const noexcept { return bufferEnd - bufferStart; }
+
+        constexpr void reserve(int new_cap) {
+            if (new_cap > capacity()) {
+                pointer new_mem = allocator_type().allocate(new_cap);
+                pointer new_end = std::uninitialized_value_construct_n(bufferStart, new_cap);
+
+                const auto &[_, lhs_buf] = std::uninitialized_move_n(
+                        bufferStart,
+                        gapStart - bufferStart,
+                        new_mem
+                        );
+                gapStart = lhs_buf;
+
+                std::size_t rhs_size = bufferEnd - gapEnd;
+                std::uninitialized_move_n(gapEnd, rhs_size, new_end - rhs_size);
+
+                bufferStart = new_mem;
+                bufferEnd = new_end;
+                gapStart = lhs_buf;
+                gapEnd = bufferEnd - rhs_size;
+            }
+        }
+
+        [[nodiscard]] constexpr unsigned int line_count() const noexcept {
+            if (bufferStart == gapStart && bufferEnd == gapEnd) {
+                return 0;
+            }
+            int newlines = std::count(begin(), end(), '\n');
+            if (back() != '\n') {
+                newlines++;
+            }
+            return newlines;
+        }
+
         // Modifiers
 
     private:
         pointer bufferStart;
-        pointer gapStart;
-        pointer gapEnd;
-        pointer bufferEnd;
+        pointer gapStart; // One space past the last value in the left half
+        pointer gapEnd; // Pointing to the first value in the right half
+        pointer bufferEnd; // One space past the last value in the right half
 };
 
 #endif // GAPBUFFER_H
