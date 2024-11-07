@@ -6,7 +6,10 @@
 #include <initializer_list>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <ostream>
+#include <stdexcept>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -233,6 +236,72 @@ class Gapbuffer {
         }
 
         // Modifiers
+        constexpr void clear() noexcept {
+            std::destroy_n(bufferStart, capacity());
+            gapStart = bufferStart;
+            gapEnd = bufferEnd;
+        }
+
+        constexpr void insert(const std::string_view value) {
+            for (auto&& c: value) { push_back(c); }
+        }
+
+        // Intentionally discardable
+        constexpr std::string erase(size_type count) {
+            std::string ret = "";
+
+            for (unsigned int i = 0; i < count; i++) {
+                ret.push_back(pop_back());
+            }
+
+            return ret;
+        }
+
+        constexpr void push_back(const char& value) {
+            *gapStart = value;
+            gapStart++;
+            if (gapStart == gapEnd) {
+                reserve(capacity() * 2);
+            }
+        }
+
+        // Intentionally discardable
+        constexpr char pop_back() {
+            if (gapStart == bufferStart) {
+                throw std::out_of_range("Buffer is empty");
+            }
+
+            const char ret = *(gapStart - 1);
+            std::destroy_at(gapStart);
+            gapStart -= 1;
+            return ret;
+        }
+
+        constexpr void advance() {
+            std::optional<char> c = std::nullopt;
+
+            if (gapEnd < bufferEnd) {
+                c = *gapEnd;
+                std::destroy_at(gapEnd);
+            }
+
+            gapEnd++;
+            if (c.has_value()) { *gapStart = c.value(); }
+            gapStart++;
+        }
+
+        constexpr void retreat() {
+            std::optional<char> c = std::nullopt;
+
+            gapStart--;
+            if (gapStart > bufferStart) {
+                c = *gapStart;
+                std::destroy_at(gapStart);
+            }
+
+            gapEnd--;
+            if (c.has_value()) { *gapEnd = c.value(); }
+        }
 
     private:
         pointer bufferStart;
