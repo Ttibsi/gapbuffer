@@ -50,9 +50,9 @@ class Gapbuffer {
                 explicit IteratorTemplate(pointer_type input_ptr, gapbuffer_ptr_type gb_ptr) 
                     : ptr(input_ptr), gb(gb_ptr) {}
 
-                // reference operator*() const { return *ptr; }
-                // pointer operator->() const { return ptr; }
-                // reference operator[](difference_type n) const { return *(ptr + n); }
+                reference operator*() const { return *ptr; }
+                pointer operator->() const { return ptr; }
+                reference operator[](difference_type n) const { return *(ptr + n); }
 
                 IteratorTemplate& operator++() {}
 
@@ -194,6 +194,38 @@ class Gapbuffer {
         // Operator Overloads
         // Element Access
         // Iterators
+        iterator begin() noexcept { return iterator(bufferStart, this); }
+        iterator end() noexcept { return iterator(bufferEnd, this); }
+        const_iterator begin() const noexcept { return const_iterator(bufferStart, this); }
+        const_iterator end() const noexcept { return const_iterator(bufferEnd, this); }
+        const_iterator cbegin() const noexcept { return const_iterator(bufferStart, this); }
+        const_iterator cend() const noexcept { return const_iterator(bufferEnd, this); }
+
+        reverse_iterator rbegin() noexcept {
+            return reverse_iterator(iterator((gapEnd == bufferEnd) ? gapStart : bufferEnd, this));
+        }
+
+        reverse_iterator rend() noexcept {
+            return reverse_iterator(iterator((gapStart == bufferStart) ? gapEnd : bufferStart, this));
+        }
+
+        const_reverse_iterator rbegin() const noexcept {
+            return const_reverse_iterator(
+                const_iterator((gapEnd == bufferEnd) ? gapStart : bufferEnd, this));
+        }
+        const_reverse_iterator rend() const noexcept {
+            return const_reverse_iterator(
+                const_iterator((gapStart == bufferStart) ? gapEnd : bufferStart, this));
+        }
+        const_reverse_iterator crbegin() const noexcept {
+            return const_reverse_iterator(this->cbegin());
+        }
+        const_reverse_iterator crend() const noexcept {
+            return const_reverse_iterator(
+                const_iterator((gapStart == bufferStart) ? gapEnd : bufferStart, this));
+        }
+
+
         // Capacity
         [[nodiscard]] constexpr bool empty() const noexcept { return bufferStart == gapStart; }
         [[nodiscard]] constexpr size_type size() const noexcept {
@@ -202,7 +234,7 @@ class Gapbuffer {
 
         [[nodiscard]] constexpr size_type capacity() const noexcept { return bufferEnd - bufferStart; }
 
-        constexpr void reserve(int new_cap) {
+        constexpr void reserve(size_type new_cap) {
             if (new_cap > capacity()) {
                 pointer new_mem = allocator_type().allocate(new_cap);
                 pointer new_end = std::uninitialized_value_construct_n(bufferStart, new_cap);
