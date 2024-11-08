@@ -92,7 +92,6 @@ class Gapbuffer {
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
         // Constructors
-
         constexpr explicit Gapbuffer() {
             bufferStart = allocator_type().allocate(32);
             bufferEnd = std::uninitialized_value_construct_n(bufferStart, 32);
@@ -192,7 +191,182 @@ class Gapbuffer {
         }
 
         // Operator Overloads
+        friend std::ostream& operator<<(std::ostream& os, const Gapbuffer& buf) {
+            os << "[";
+            for (auto p = buf.bufferStart; p < buf.bufferEnd; p++) {
+                if (p >= buf.gapStart && p <= buf.gapEnd) {
+                    os << " ";
+                } else {
+                    os << *p;
+                }
+            }
+            os << "]";
+
+            return os;
+        }
+
+        [[nodiscard]] constexpr reference operator[](const size_type& loc) noexcept {
+            if (loc < static_cast<size_type>(gapStart - bufferStart)) {
+                return *(bufferStart + loc);
+            } else {
+                return *(gapEnd + (loc - (gapStart - bufferStart)));
+            }
+        }
+
+        [[nodiscard]] constexpr const_reference operator[](const size_type& loc) const noexcept {
+            if (loc < static_cast<size_type>(gapStart - bufferStart)) {
+                return *(bufferStart + loc);
+            } else {
+                return *(gapEnd + (loc - (gapStart - bufferStart)));
+            }
+        }
+
+    [[nodiscard]] bool operator==(const Gapbuffer& other) const noexcept {
+        if (size() != other.size()) {
+            return false;
+        }
+        if (to_str() != other.to_str()) {
+            return false;
+        }
+        return true;
+    }
+
         // Element Access
+        // TODO: When I upgrade to c++23, look into `deducing this` and `std::forward_like` to 
+        // use metaprogramming to need only one function for each function type here instead 
+        // of two
+        [[nodiscard]] constexpr reference at(size_type loc) {
+            if (loc >= size()) {
+                throw std::out_of_range("index out of range");
+            }
+
+            // Determine the actual memory address to access
+            if (loc < static_cast<size_type>(gapStart - bufferStart)) {
+                // Before the gap
+                return *(bufferStart + loc);
+            } else {
+                // After the gap
+                return *(gapEnd + (loc - (gapStart - bufferStart)));
+            }
+        }
+
+        [[nodiscard]] constexpr const_reference at(size_type loc) const {
+            if (loc >= size()) {
+                throw std::out_of_range("index out of range");
+            }
+
+            // Determine the actual memory address to access
+            if (loc < static_cast<size_type>(gapStart - bufferStart)) {
+                // Before the gap
+                return *(bufferStart + loc);
+            } else {
+                // After the gap
+                return *(gapEnd + (loc - (gapStart - bufferStart)));
+            }
+        }
+
+        [[nodiscard]] constexpr reference front() {
+            if (gapStart == bufferStart && gapEnd == bufferEnd) {
+                throw std::out_of_range("Accessing front element in an empty Gapvector");
+            }
+
+            if (bufferStart == gapStart) {
+                return *gapEnd;
+            }
+
+            return *bufferStart;
+        }
+
+        [[nodiscard]] constexpr const_reference front() const {
+            if (gapStart == bufferStart && gapEnd == bufferEnd) {
+                throw std::out_of_range("Accessing front element in an empty Gapvector");
+            }
+
+            if (bufferStart == gapStart) {
+                return *gapEnd;
+            }
+
+            return *bufferStart;
+        }
+
+        [[nodiscard]] constexpr reference back() {
+            if (gapStart == bufferStart && gapEnd == bufferEnd) {
+                throw std::out_of_range("Accessing back element in an empty Gapvector");
+            }
+
+            if (bufferEnd == gapEnd) {
+                return *(gapStart - 1);
+            }
+
+            return *(bufferEnd - 1);
+        }
+
+        [[nodiscard]] constexpr const_reference back() const {
+            if (gapStart == bufferStart && gapEnd == bufferEnd) {
+                throw std::out_of_range("Accessing back element in an empty Gapvector");
+            }
+
+            if (bufferEnd == gapEnd) {
+                return *(gapStart - 1);
+            }
+
+            return *(bufferEnd - 1);
+        }
+
+        [[nodiscard]] const std::string to_str() const noexcept {
+            std::string ret;
+            ret.reserve(size());
+            ret.append(bufferStart, (gapStart - bufferStart));
+            ret.append(gapEnd, (bufferEnd - gapEnd));
+            return ret;
+        }
+
+        [[nodiscard]] std::string line(size_type pos) const {
+            if (pos > size()) {
+                throw std::out_of_range("index out of range");
+            }
+            if (empty()) {
+                throw std::runtime_error("Cannot pull line from empty gapvector");
+            }
+
+            // Find start of line (previous newline or buffer start)
+            const_iterator line_start = cbegin();
+            for (const_iterator it = std::next(cbegin(), pos); it != cbegin(); --it) {
+                if (*(it - 1) == '\n') {
+                    line_start = it;
+                    break;
+                }
+            }
+
+            // Find end of line (next newline or buffer end)
+            const_iterator line_end = cend();
+            for (const_iterator it = std::next(cbegin(), pos); it != cend(); ++it) {
+                if (*it == '\n') {
+                    line_end = std::next(it);  // Include the newline in the result
+                    break;
+                }
+            }
+
+            return std::string(line_start, line_end);
+        }
+
+        [[nodiscard]] int find(char c, int count = 1) const {
+            if (count == 0) {
+                return 0;
+            }
+
+            int tracking_count = 0;
+            for (auto it = begin(); it != end(); ++it) {
+                if (*it == c) {
+                    ++tracking_count;
+                    if (tracking_count == count) {
+                        return std::distance(begin(), it);
+                    }
+                }
+            }
+            return -1;
+        }
+
         // Iterators
         iterator begin() noexcept { return iterator(bufferStart, this); }
         iterator end() noexcept { return iterator(bufferEnd, this); }
@@ -231,6 +405,7 @@ class Gapbuffer {
         [[nodiscard]] constexpr size_type size() const noexcept {
             return bufferEnd - bufferStart - (gapEnd - gapStart);
         }
+        [[nodiscard]] constexpr size_type gap_size() const noexcept { return gapEnd - gapStart; }
 
         [[nodiscard]] constexpr size_type capacity() const noexcept { return bufferEnd - bufferStart; }
 
