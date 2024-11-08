@@ -221,15 +221,15 @@ class Gapbuffer {
             }
         }
 
-    [[nodiscard]] bool operator==(const Gapbuffer& other) const noexcept {
-        if (size() != other.size()) {
-            return false;
+        [[nodiscard]] bool operator==(const Gapbuffer& other) const noexcept {
+            if (size() != other.size()) {
+                return false;
+            }
+            if (to_str() != other.to_str()) {
+                return false;
+            }
+            return true;
         }
-        if (to_str() != other.to_str()) {
-            return false;
-        }
-        return true;
-    }
 
         // Element Access
         // TODO: When I upgrade to c++23, look into `deducing this` and `std::forward_like` to 
@@ -406,7 +406,6 @@ class Gapbuffer {
             return bufferEnd - bufferStart - (gapEnd - gapStart);
         }
         [[nodiscard]] constexpr size_type gap_size() const noexcept { return gapEnd - gapStart; }
-
         [[nodiscard]] constexpr size_type capacity() const noexcept { return bufferEnd - bufferStart; }
 
         constexpr void reserve(size_type new_cap) {
