@@ -1,7 +1,10 @@
 #ifndef GAPBUFFER_H
 #define GAPBUFFER_H
 
+#include <iostream>
+
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <initializer_list>
 #include <iterator>
@@ -49,21 +52,47 @@ class Gapbuffer {
 
                 explicit IteratorTemplate() = default;
                 explicit IteratorTemplate(pointer_type input_ptr, gapbuffer_ptr_type gb_ptr) 
-                    : ptr(input_ptr), gb(gb_ptr) {}
+                    : ptr(input_ptr), buf_ptr(gb_ptr) {}
 
                 reference operator*() const { return *ptr; }
                 pointer operator->() const { return ptr; }
                 reference operator[](difference_type n) const { return *(ptr + n); }
 
-                IteratorTemplate& operator++() {}
+                IteratorTemplate& operator++() {
+                    ptr++;
+                    if (ptr == buf_ptr->gapStart) {
+                        ptr = buf_ptr->gapEnd;
+                    }
+                    return *this;
+                }
 
-                // pre-increment
-                IteratorTemplate operator++(int) {}
+                // postfix increment
+                IteratorTemplate operator++(int) {
+                    IteratorTemplate tmp = *this;
+                    ++(*this);
+                    if (ptr == buf_ptr->gapStart) {
+                        ptr = buf_ptr->gapEnd;
+                    }
+                    return tmp;
+                }
 
-                IteratorTemplate& operator--() {}
+                IteratorTemplate& operator--() {
+                    ptr--;
+                    if (ptr == buf_ptr->gapStart) {
+                        ptr = buf_ptr->gapEnd;
+                    }
+                    return *this;
+                }
 
-                // pre-increment
-                IteratorTemplate operator--(int) {}
+                // postfix decrement
+                IteratorTemplate operator--(int) {
+                    IteratorTemplate tmp = *this;
+                    --(*this);
+                    if (ptr == buf_ptr->gapStart) {
+                        ptr = buf_ptr->gapEnd;
+                    }
+                    return tmp;
+                }
 
                 IteratorTemplate operator+(const difference_type other) const {
                     pointer new_ptr = ptr + other;
@@ -77,9 +106,9 @@ class Gapbuffer {
                     return IteratorTemplate(ptr + other, buf_ptr);
                 }
 
-                IteratorTemplate operator-(const int val) {}
-                difference_type operator-(const IteratorTemplate& other) const {}
-                IteratorTemplate operator-(const difference_type other) const {}
+                friend IteratorTemplate operator+( const difference_type value, const IteratorTemplate& other) {
+                    return other + value;
+               }
 
                 friend difference_type operator+(const IteratorTemplate& a, const IteratorTemplate& b) {
                     return *a + *b;
@@ -128,7 +157,7 @@ class Gapbuffer {
 
             private:
                 pointer_type ptr;
-                gapbuffer_ptr_type gb;
+                gapbuffer_ptr_type buf_ptr;
         };
 
     public:
@@ -151,19 +180,31 @@ class Gapbuffer {
         }
 
         constexpr explicit Gapbuffer(const size_type length) {
+            if (length < 2) {
+                throw std::runtime_error("Cannot construct gapbuffer with capacity < 2");
+            }
+
             bufferStart = allocator_type().allocate(length);
             bufferEnd = std::uninitialized_value_construct_n(bufferStart, length);
             gapStart = bufferStart;
             gapEnd = bufferEnd;
+
+            static_assert(std::random_access_iterator<iterator>);
+            static_assert(std::random_access_iterator<const_iterator>);
+            static_assert(std::ranges::random_access_range<Gapbuffer>);
         }
 
         constexpr explicit Gapbuffer(std::string_view str) {
             bufferStart = allocator_type().allocate(str.size() + 8);
 
-            const auto &[_, final_destination] = std::uninitialized_move_n(str.begin(), str.size(), bufferStart);
+            const auto [_, final_destination] = std::uninitialized_move_n(str.begin(), str.size(), bufferStart);
             gapStart = final_destination;
             gapEnd = gapStart + 8;
             bufferEnd = gapEnd;
+
+            static_assert(std::random_access_iterator<iterator>);
+            static_assert(std::random_access_iterator<const_iterator>);
+            static_assert(std::ranges::random_access_range<Gapbuffer>);
         }
 
         template <typename InputIt>
@@ -172,15 +213,19 @@ class Gapbuffer {
 
             bufferStart = allocator_type().allocate(len + 8);
 
-            auto &[_, final_destination] = std::uninitialized_move_n(begin, len, bufferStart);
+            auto [_, final_destination] = std::uninitialized_move_n(begin, len, bufferStart);
             gapStart = final_destination;
             gapEnd = gapStart + 8;
             bufferEnd = gapEnd;
+
+            static_assert(std::random_access_iterator<iterator>);
+            static_assert(std::random_access_iterator<const_iterator>);
+            static_assert(std::ranges::random_access_range<Gapbuffer>);
         }
         
-        constexpr explicit Gapbuffer(std::initializer_list<char> lst) {
+        constexpr Gapbuffer(std::initializer_list<char> lst) {
             bufferStart = allocator_type().allocate(lst.size());
-            const auto &[_, final_destination] = std::uninitialized_move_n(
+            const auto [_, final_destination] = std::uninitialized_move_n(
                     lst.begin(),
                     lst.size(),
                     bufferStart
@@ -188,15 +233,19 @@ class Gapbuffer {
             gapStart = final_destination;
             gapEnd = gapStart + 8;
             bufferEnd = gapEnd;
+
+            static_assert(std::random_access_iterator<iterator>);
+            static_assert(std::random_access_iterator<const_iterator>);
+            static_assert(std::ranges::random_access_range<Gapbuffer>);
         }
 
         // Copy Constructor
         constexpr Gapbuffer(const Gapbuffer& other) {
             bufferStart = allocator_type().allocate(other.capacity());
-            gapStart = std::uninitialized_copy_n(other.bufferStart, other.capacity(), bufferStart);
-
+            bufferEnd = std::uninitialized_copy_n(other.bufferStart, other.capacity(), bufferStart);
+            gapStart = bufferStart + (other.gapStart - other.bufferStart);
             gapEnd = bufferStart + (other.gapEnd - other.bufferStart);
-            bufferEnd = bufferStart + other.capacity();
+
         }
 
         // Copy Assignment
@@ -213,11 +262,22 @@ class Gapbuffer {
         }
 
         // Move Constructor
-        constexpr Gapbuffer(Gapbuffer&& other)
-            : bufferStart(other.bufferStart),
-              gapStart(other.gapStart),
-              gapEnd(other.gapEnd),
-              bufferEnd(other.bufferEnd) {
+        constexpr Gapbuffer(Gapbuffer&& other) {
+            bufferStart = allocator_type().allocate(other.capacity());
+
+            const auto [_, moved] = std::uninitialized_move_n(
+                other.bufferStart,
+                other.capacity(),
+                bufferStart
+            );
+            bufferEnd = moved;
+            gapStart = bufferStart + (other.gapStart - other.bufferStart);
+            gapEnd = bufferStart + (other.gapEnd - other.bufferStart);
+
+            other.bufferStart = nullptr;
+            other.gapStart = nullptr;
+            other.gapEnd = nullptr;
+            other.bufferEnd = nullptr;
 
             allocator_type().deallocate(other.bufferStart, other.capacity());
         }
@@ -245,7 +305,7 @@ class Gapbuffer {
         friend std::ostream& operator<<(std::ostream& os, const Gapbuffer& buf) {
             os << "[";
             for (auto p = buf.bufferStart; p < buf.bufferEnd; p++) {
-                if (p >= buf.gapStart && p <= buf.gapEnd) {
+                if (p >= buf.gapStart && p < buf.gapEnd) {
                     os << " ";
                 } else {
                     os << *p;
@@ -256,7 +316,11 @@ class Gapbuffer {
             return os;
         }
 
-        [[nodiscard]] constexpr reference operator[](const size_type& loc) noexcept {
+        [[nodiscard]] constexpr reference operator[](const size_type& loc) {
+            if (loc > size()) {
+                throw std::out_of_range("Out of bounds indexing");
+            }
+
             if (loc < static_cast<size_type>(gapStart - bufferStart)) {
                 return *(bufferStart + loc);
             } else {
@@ -264,7 +328,11 @@ class Gapbuffer {
             }
         }
 
-        [[nodiscard]] constexpr const_reference operator[](const size_type& loc) const noexcept {
+        [[nodiscard]] constexpr const_reference operator[](const size_type& loc) const {
+            if (loc > size()) {
+                throw std::out_of_range("Out of bounds indexing");
+            }
+
             if (loc < static_cast<size_type>(gapStart - bufferStart)) {
                 return *(bufferStart + loc);
             } else {
@@ -281,6 +349,8 @@ class Gapbuffer {
             }
             return true;
         }
+
+        [[nodiscard]] bool operator!=(const Gapbuffer& other) const noexcept = default;
 
         // Element Access
         // TODO: When I upgrade to c++23, look into `deducing this` and `std::forward_like` to 
@@ -380,22 +450,22 @@ class Gapbuffer {
                 throw std::runtime_error("Cannot pull line from empty gapvector");
             }
 
-            // Find start of line (previous newline or buffer start)
-            const_iterator line_start = cbegin();
-            for (const_iterator it = std::next(cbegin(), pos); it != cbegin(); --it) {
-                if (*(it - 1) == '\n') {
-                    line_start = it;
-                    break;
-                }
-            }
+            auto range = std::ranges::subrange(begin(), end());
 
-            // Find end of line (next newline or buffer end)
-            const_iterator line_end = cend();
-            for (const_iterator it = std::next(cbegin(), pos); it != cend(); ++it) {
-                if (*it == '\n') {
-                    line_end = std::next(it);  // Include the newline in the result
-                    break;
-                }
+            auto line_start = std::ranges::find(
+                std::ranges::reverse_view(range | std::views::take(pos)),
+                '\n'
+                ).base();
+
+            auto line_end = std::ranges::find(
+                std::ranges::drop_view(range, pos - 1),
+                '\n'
+                );
+
+            if (line_end == range.end()) {
+                line_end = end();
+            } else {
+                line_end++;
             }
 
             return std::string(line_start, line_end);
@@ -410,11 +480,12 @@ class Gapbuffer {
             for (auto it = begin(); it != end(); ++it) {
                 if (*it == c) {
                     ++tracking_count;
-                    if (tracking_count == count) {
+                    if (count == tracking_count) {
                         return std::distance(begin(), it);
                     }
                 }
             }
+
             return -1;
         }
 
@@ -462,9 +533,9 @@ class Gapbuffer {
         constexpr void reserve(size_type new_cap) {
             if (new_cap > capacity()) {
                 pointer new_mem = allocator_type().allocate(new_cap);
-                pointer new_end = std::uninitialized_value_construct_n(bufferStart, new_cap);
+                pointer new_end = std::uninitialized_value_construct_n(new_mem, new_cap);
 
-                const auto &[_, lhs_buf] = std::uninitialized_move_n(
+                const auto [_, lhs_buf] = std::uninitialized_move_n(
                         bufferStart,
                         gapStart - bufferStart,
                         new_mem
