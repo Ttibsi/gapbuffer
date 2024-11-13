@@ -517,4 +517,16 @@ class Gapbuffer {
         pointer bufferEnd; // One space past the last value in the right half
 };
 
+namespace std {
+    template <>
+    std::size_t size(const Gapbuffer& buf) noexcept {
+        return buf.size();
+    }
+
+    template <>
+    std::ptrdiff_t ssize(const Gapbuffer& buf) noexcept {
+        return static_cast<std::ptrdiff_t>(buf.size());
+    }
+}
+
 #endif // GAPBUFFER_H
