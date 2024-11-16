@@ -1,11 +1,10 @@
-#include "gapbuffer.h"
-
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "catch_amalgamated.hpp"
+#include "gapbuffer.h"
 
 TEST_CASE("Default Constructor", "[Constructors]") {
     auto buf = Gapbuffer();
@@ -49,7 +48,6 @@ TEST_CASE("String_view Constructor", "[Constructors]") {
         REQUIRE(buf.capacity() == 8);
         REQUIRE(buf.to_str() == "");
     }
-
 }
 
 TEST_CASE("Range Constructor", "[Constructors]") {
@@ -71,7 +69,6 @@ TEST_CASE("Initializer List Constructor", "[Constructors]") {
     REQUIRE(buf.gap_size() == 8);
     REQUIRE(buf.capacity() == 5 + 8);
     REQUIRE(buf.to_str() == "hello");
-
 }
 
 TEST_CASE("Copy Constructor", "[Constructors]") {
@@ -153,7 +150,7 @@ TEST_CASE("Destructor", "[Constructors]") {
     {
         auto buf = Gapbuffer("Hello");
         e = &buf.at(1);
-    } // Out of scope, gets destructed
+    }  // Out of scope, gets destructed
 
     REQUIRE_FALSE(*e == 'e');
 }
@@ -644,7 +641,7 @@ TEST_CASE("Advance", "[Modifiers]") {
     }
 }
 
-TEST_CASE("Retreat", "[Modifiers]") { 
+TEST_CASE("Retreat", "[Modifiers]") {
     SECTION("Space in gap") {
         std::string s = "hello world";
         auto buf = Gapbuffer(s);
