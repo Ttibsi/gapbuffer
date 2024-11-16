@@ -642,12 +642,12 @@ class Gapbuffer {
 
 namespace std {
     template <>
-    std::size_t size(const Gapbuffer& buf) noexcept {
+    inline std::size_t size(const Gapbuffer& buf) noexcept {
         return buf.size();
     }
 
     template <>
-    std::ptrdiff_t ssize(const Gapbuffer& buf) noexcept {
+    inline std::ptrdiff_t ssize(const Gapbuffer& buf) noexcept {
         return static_cast<std::ptrdiff_t>(buf.size());
     }
 }  // namespace std
