@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -64,18 +65,64 @@ class Gapbuffer {
                 // pre-increment
                 IteratorTemplate operator--(int) {}
 
-                IteratorTemplate operator+(const int val) {}
-                IteratorTemplate operator+(const difference_type other) const {}
-                friend IteratorTemplate operator+(
-                    const difference_type value,
-                    const IteratorTemplate& other) {}
+                IteratorTemplate operator+(const difference_type other) const {
+                    pointer new_ptr = ptr + other;
+
+                    if (ptr <= buf_ptr->gapStart && new_ptr > buf_ptr->gapStart) {
+                        new_ptr += (buf_ptr->gapEnd - buf_ptr->gapStart);
+                    } else if (ptr >= buf_ptr->gapEnd && new_ptr < buf_ptr->gapEnd) {
+                        new_ptr -= (buf_ptr->gapEnd - buf_ptr->gapStart);
+                    }
+
+                    return IteratorTemplate(ptr + other, buf_ptr);
+                }
 
                 IteratorTemplate operator-(const int val) {}
                 difference_type operator-(const IteratorTemplate& other) const {}
                 IteratorTemplate operator-(const difference_type other) const {}
 
-                IteratorTemplate& operator+=(difference_type n) {}
-                IteratorTemplate& operator-=(difference_type n) {}
+                friend difference_type operator+(const IteratorTemplate& a, const IteratorTemplate& b) {
+                    return *a + *b;
+                }
+
+                IteratorTemplate operator-(const difference_type other) const {
+                    pointer new_ptr = ptr - other;
+
+                    if (ptr >= buf_ptr->gapEnd && new_ptr < buf_ptr->gapEnd) {
+                        new_ptr -= (buf_ptr->gapEnd - buf_ptr->gapStart);
+                    } else if (ptr <= buf_ptr->gapStart && new_ptr > buf_ptr->gapStart) {
+                        new_ptr += (buf_ptr->gapEnd - buf_ptr->gapStart);
+                    }
+
+                    return IteratorTemplate(ptr - other, buf_ptr);
+                }
+
+                friend IteratorTemplate operator-(const difference_type value, const IteratorTemplate& other) {
+                    return other - value;
+                }
+
+                friend difference_type operator-(const IteratorTemplate& self, const IteratorTemplate& other) {
+                        difference_type distance = self.ptr - other.ptr;
+
+                        // Adjust for gap
+                        if (self.ptr > self.buf_ptr->gapStart && other.ptr <= self.buf_ptr->gapStart) {
+                            distance -= (self.buf_ptr->gapEnd - self.buf_ptr->gapStart);
+                        } else if (self.ptr <= self.buf_ptr->gapStart && other.ptr > self.buf_ptr->gapStart) {
+                            distance += (self.buf_ptr->gapEnd - self.buf_ptr->gapStart);
+                        }
+
+                        return distance;
+                }
+
+                IteratorTemplate& operator+=(difference_type n) { 
+                    ptr += n;
+                    return *this;
+                }
+
+                IteratorTemplate& operator-=(difference_type n) {
+                    ptr -= n;
+                    return *this;
+                }
 
                 auto operator<=>(const IteratorTemplate&) const = default;
 
@@ -97,6 +144,10 @@ class Gapbuffer {
             bufferEnd = std::uninitialized_value_construct_n(bufferStart, 32);
             gapStart = bufferStart;
             gapEnd = bufferEnd;
+
+            static_assert(std::random_access_iterator<iterator>);
+            static_assert(std::random_access_iterator<const_iterator>);
+            static_assert(std::ranges::random_access_range<Gapbuffer>);
         }
 
         constexpr explicit Gapbuffer(const size_type length) {
