@@ -1,9 +1,11 @@
 #include "gapbuffer.h"
-#include "catch_amalgamated.hpp"
 
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "catch_amalgamated.hpp"
 
 TEST_CASE("Default Constructor", "[Constructors]") {
     auto buf = Gapbuffer();
@@ -146,12 +148,14 @@ TEST_CASE("Move Assignment Constructor", "[Constructors]") {
 }
 
 TEST_CASE("Destructor", "[Constructors]") {
-    // auto buf = Gapbuffer("Hello");
-    // char* e = buf.begin() + 1;
-    //
-    // buf.~Gapbuffer();
-    // REQUIRE_FALSE(&e == 'e');
-    SKIP("TODO");
+    char* e;
+
+    {
+        auto buf = Gapbuffer("Hello");
+        e = &buf.at(1);
+    } // Out of scope, gets destructed
+
+    REQUIRE_FALSE(*e == 'e');
 }
 
 TEST_CASE("Operator Print", "[Operator Overloads]") {
@@ -370,19 +374,96 @@ TEST_CASE("End", "[Iterators]") {
     std::string s = "hello world";
     auto buf = Gapbuffer(s);
 
-    REQUIRE(*(buf.end() - buf.gap_size() - 1) == 'd');
+    SECTION("Initial buffer") {
+        REQUIRE(*(buf.end() - 9) == 'd');
+        REQUIRE(*(buf.end() - 10) == 'l');
+    }
+
+    SECTION("Move gap") {
+        buf.retreat();
+        REQUIRE(*(buf.end() - 9) == 'd');
+        REQUIRE(*(buf.end() - 10) == 'l');
+    }
 }
 
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
-TEST_CASE("", "[Iterators]") { SKIP("TODO"); }
+TEST_CASE("Begin (Const)", "[Iterators]") {
+    std::string s = "hello world";
+    const auto buf = Gapbuffer(s);
+
+    REQUIRE(*buf.begin() == 'h');
+    REQUIRE(*(buf.begin() + 3) == 'l');
+}
+
+TEST_CASE("End (const)", "[Iterators]") {
+    std::string s = "hello world";
+    const auto buf = Gapbuffer(s);
+
+    SECTION("initial buffer") {
+        REQUIRE(*(buf.end() - 9) == 'd');
+        REQUIRE(*(buf.end() - 8) == 0);
+    }
+}
+
+TEST_CASE("Cbegin", "[Iterators]") {
+    std::string s = "hello world";
+    const auto buf = Gapbuffer(s);
+
+    REQUIRE(*buf.cbegin() == 'h');
+    REQUIRE(*(buf.cbegin() + 3) == 'l');
+}
+
+TEST_CASE("Cend", "[Iterators]") {
+    std::string s = "hello world";
+    const auto buf = Gapbuffer(s);
+
+    REQUIRE(*(buf.cend() - 9) == 'd');
+}
+
+TEST_CASE("Rbegin", "[Iterators]") {
+    std::string s = "hello world";
+    auto buf = Gapbuffer(s);
+
+    REQUIRE(*buf.rbegin() == 'd');
+    REQUIRE(*(buf.rbegin() + 3) == 'o');
+}
+
+TEST_CASE("Rend", "[Iterators]") {
+    std::string s = "hello world";
+    auto buf = Gapbuffer(s);
+
+    REQUIRE(*(buf.rend() - 1) == 'h');
+}
+
+TEST_CASE("Rbegin (Const)", "[Iterators]") {
+    std::string s = "hello world";
+    const auto buf = Gapbuffer(s);
+
+    REQUIRE(*buf.rbegin() == 'd');
+    REQUIRE(*(buf.rbegin() + 3) == 'o');
+}
+
+TEST_CASE("Rend (Const)", "[Iterators]") {
+    std::string s = "hello world";
+    const auto buf = Gapbuffer(s);
+
+    REQUIRE(*(buf.rend() - 1) == 'h');
+}
+
+TEST_CASE("Crbegin", "[Iterators]") {
+    std::string s = "hello world";
+    const auto buf = Gapbuffer(s);
+
+    REQUIRE(*buf.cbegin() == 'h');
+    REQUIRE(*(buf.cbegin() + 3) == 'l');
+}
+
+TEST_CASE("Crend", "[Iterators]") {
+    std::string s = "hello world";
+    const auto buf = Gapbuffer(s);
+
+    REQUIRE(*(buf.crend() - 1) == 'h');
+}
+
 TEST_CASE("Empty", "[Capacity]") {
     auto buf = Gapbuffer();
     REQUIRE(buf.empty() == true);
@@ -442,14 +523,12 @@ TEST_CASE("Line Count", "[Capacity]") {
     }
 
     SECTION("No Newlines present") {
-        SKIP("TODO: Implement Iterator");
         std::string s = "hello world";
         auto buf = Gapbuffer(s);
         REQUIRE(buf.line_count() == 1);
     }
 
     SECTION("Many Newlines present") {
-        SKIP("TODO: Implement Iterator");
         std::string s = "hello world\r\nthis is some text\r\nanother newline";
         auto buf = Gapbuffer(s);
         REQUIRE(buf.line_count() == 3);
@@ -512,5 +591,94 @@ TEST_CASE("Pop Back", "[Modifiers]") {
     REQUIRE(buf.to_str() == "hello worl");
 }
 
-TEST_CASE("Advance", "[Modifiers]") { SKIP("TODO"); }
-TEST_CASE("Retreat", "[Modifiers]") { SKIP("TODO"); }
+TEST_CASE("Advance", "[Modifiers]") {
+    SECTION("Space in gap") {
+        std::string s = "hello world";
+        auto buf = Gapbuffer(s);
+
+        std::stringstream ss;
+
+        ss << buf;
+        REQUIRE(ss.str() == "[hello world        ]");
+
+        buf.retreat();
+        buf.retreat();
+        buf.retreat();
+
+        ss.str(std::string());
+        ss << buf;
+        REQUIRE(ss.str() == "[hello wo        rld]");
+
+        buf.advance();
+        buf.advance();
+
+        ss.str(std::string());
+        ss << buf;
+        REQUIRE(ss.str() == "[hello worl        d]");
+    }
+
+    SECTION("Full buffer") {
+        auto buf = Gapbuffer();
+        buf.insert("#include <iostream>\r\n\r\nint main");
+        REQUIRE(buf.capacity() == 32);
+
+        std::stringstream ss;
+
+        ss << buf;
+        REQUIRE(ss.str() == "[#include <iostream>\r\n\r\nint main ]");
+
+        buf.retreat();
+        buf.retreat();
+        buf.retreat();
+
+        ss.str(std::string());
+        ss << buf;
+        REQUIRE(ss.str() == "[#include <iostream>\r\n\r\nint m ain]");
+
+        buf.advance();
+        buf.advance();
+
+        ss.str(std::string());
+        ss << buf;
+        REQUIRE(ss.str() == "[#include <iostream>\r\n\r\nint mai n]");
+    }
+}
+
+TEST_CASE("Retreat", "[Modifiers]") { 
+    SECTION("Space in gap") {
+        std::string s = "hello world";
+        auto buf = Gapbuffer(s);
+
+        std::stringstream ss;
+
+        ss << buf;
+        REQUIRE(ss.str() == "[hello world        ]");
+
+        buf.retreat();
+        buf.retreat();
+        buf.retreat();
+
+        ss.str(std::string());
+        ss << buf;
+        REQUIRE(ss.str() == "[hello wo        rld]");
+    }
+
+    SECTION("Full buffer") {
+        auto buf = Gapbuffer();
+        buf.insert("#include <iostream>\r\n\r\nint main");
+        REQUIRE(buf.capacity() == 32);
+
+        std::stringstream ss;
+
+        ss << buf;
+        REQUIRE(ss.str() == "[#include <iostream>\r\n\r\nint main ]");
+
+        buf.retreat();
+        buf.retreat();
+        buf.retreat();
+
+        ss.str(std::string());
+        ss << buf;
+        REQUIRE(ss.str() == "[#include <iostream>\r\n\r\nint m ain]");
+    }
+}

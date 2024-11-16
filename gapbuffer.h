@@ -606,6 +606,7 @@ class Gapbuffer {
         }
 
         constexpr void advance() {
+            if (gap_size() == 0) { return; }
             std::optional<char> c = std::nullopt;
 
             if (gapEnd < bufferEnd) {
@@ -619,6 +620,7 @@ class Gapbuffer {
         }
 
         constexpr void retreat() {
+            if (gap_size() == 0) { return; }
             std::optional<char> c = std::nullopt;
 
             gapStart--;
